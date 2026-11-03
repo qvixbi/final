@@ -14,51 +14,48 @@ import (
 func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 	var task db.Task
 
-	// Читаем JSON из запроса
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
-		writeJSON(w, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
-	// Проверяем заголовок
 	if strings.TrimSpace(task.Title) == "" {
-		writeJSON(w, map[string]string{"error": "Не указан заголовок задачи"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "не указан заголовок задачи",
+		})
 		return
 	}
 
-	// Проверяем дату и правило повторения
 	if err := checkDate(&task); err != nil {
-		writeJSON(w, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
-	// Добавляем задачу в базу
 	id, err := db.AddTask(&task)
 	if err != nil {
-		writeJSON(w, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 
-	// Возвращаем ID созданной задачи
-	writeJSON(w, map[string]string{"id": strconv.FormatInt(id, 10)})
+	writeJSON(w, http.StatusOK, map[string]string{
+		"id": strconv.FormatInt(id, 10),
+	})
 }
 
 func checkDate(task *db.Task) error {
 	now := time.Now()
 
-	// Если дата не указана, используем сегодняшний день
 	if task.Date == "" {
-		task.Date = now.Format("20060102")
+		task.Date = now.Format(nextdate.DateFormat)
 	}
 
-	// Проверяем формат и существование даты
-	_, err := time.Parse("20060102", task.Date)
-	if err != nil {
+	if _, err := time.Parse(nextdate.DateFormat, task.Date); err != nil {
 		return err
 	}
 
-	// Проверяем правило повторения, если оно указано
 	var next string
+	var err error
+
 	if task.Repeat != "" {
 		next, err = nextdate.NextDate(now, task.Date, task.Repeat)
 		if err != nil {
@@ -66,10 +63,11 @@ func checkDate(task *db.Task) error {
 		}
 	}
 
-	// Если дата задачи раньше сегодняшней
-	if task.Date < now.Format("20060102") {
+	today := now.Format(nextdate.DateFormat)
+
+	if task.Date < today {
 		if task.Repeat == "" {
-			task.Date = now.Format("20060102")
+			task.Date = today
 		} else {
 			task.Date = next
 		}

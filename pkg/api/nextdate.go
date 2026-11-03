@@ -10,30 +10,28 @@ import (
 
 func nextDateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+		http.Error(w, "метод не поддерживается", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Получаем параметры запроса.
-	nowStr := r.URL.Query().Get("now")
-	date := r.URL.Query().Get("date")
-	repeat := r.URL.Query().Get("repeat")
+	query := r.URL.Query()
+	nowStr := query.Get("now")
+	date := query.Get("date")
+	repeat := query.Get("repeat")
 
-	// Проверяем текущую дату.
-	now, err := time.Parse("20060102", nowStr)
+	now, err := time.Parse(nextdate.DateFormat, nowStr)
 	if err != nil {
-		http.Error(w, "Неверная текущая дата", http.StatusBadRequest)
+		http.Error(w, "неверная текущая дата", http.StatusBadRequest)
 		return
 	}
 
-	// Вычисляем следующую дату.
 	result, err := nextdate.NextDate(now, date, repeat)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Возвращаем дату обычным текстом.
 	w.Header().Set("Content-Type", "text/plain; charset=UTF-8")
-	fmt.Fprint(w, result)
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprint(w, result)
 }

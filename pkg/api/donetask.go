@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -11,60 +12,75 @@ import (
 
 func doneTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeJSON(w, map[string]string{
-			"error": "Метод не поддерживается",
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{
+			"error": "метод не поддерживается",
 		})
 		return
 	}
 
-	// Получаем идентификатор задачи.
 	id := r.URL.Query().Get("id")
-
 	if strings.TrimSpace(id) == "" {
-		writeJSON(w, map[string]string{
-			"error": "Не указан идентификатор",
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "не указан идентификатор",
 		})
 		return
 	}
 
-	// Получаем задачу из базы данных.
 	task, err := db.GetTask(id)
 	if err != nil {
-		writeJSON(w, map[string]string{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	// Если задача одноразовая, удаляем её.
-	if task.Repeat == "" {
-		if err := db.DeleteTask(id); err != nil {
-			writeJSON(w, map[string]string{
+		if errors.Is(err, db.ErrTaskNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{
 				"error": err.Error(),
 			})
 			return
 		}
 
-		writeJSON(w, struct{}{})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
+			"error": err.Error(),
+		})
 		return
 	}
 
-	// Для периодической задачи рассчитываем следующую дату.
+	if task.Repeat == "" {
+		if err := db.DeleteTask(id); err != nil {
+			if errors.Is(err, db.ErrTaskNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{
+					"error": err.Error(),
+				})
+				return
+			}
+
+			writeJSON(w, http.StatusInternalServerError, map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, struct{}{})
+		return
+	}
+
 	next, err := nextdate.NextDate(time.Now(), task.Date, task.Repeat)
 	if err != nil {
-		writeJSON(w, map[string]string{
+		writeJSON(w, http.StatusBadRequest, map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
-	// Сохраняем новую дату в базе данных.
 	if err := db.UpdateDate(next, id); err != nil {
-		writeJSON(w, map[string]string{
+		if errors.Is(err, db.ErrTaskNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
-	writeJSON(w, struct{}{})
+	writeJSON(w, http.StatusOK, struct{}{})
 }

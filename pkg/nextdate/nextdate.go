@@ -7,34 +7,25 @@ import (
 	"time"
 )
 
-// afterNow проверяет, что дата date позже даты now.
-// Время суток при сравнении не учитывается.
-func afterNow(date, now time.Time) bool {
-	d := date.Format("20060102")
-	n := now.Format("20060102")
+const DateFormat = "20060102"
 
-	return d > n
+func afterNow(date, now time.Time) bool {
+	return date.Format(DateFormat) > now.Format(DateFormat)
 }
 
-// NextDate вычисляет следующую дату задачи.
 func NextDate(now time.Time, dstart string, repeat string) (string, error) {
-	// Преобразуем исходную дату в time.Time.
-	date, err := time.Parse("20060102", dstart)
+	date, err := time.Parse(DateFormat, dstart)
 	if err != nil {
 		return "", fmt.Errorf("неверная исходная дата: %w", err)
 	}
 
-	// Разбираем правило повторения.
 	parts := strings.Fields(repeat)
-
 	if len(parts) == 0 {
 		return "", fmt.Errorf("правило повторения не указано")
 	}
 
 	switch parts[0] {
-
 	case "d":
-		// Проверяем формат правила d.
 		if len(parts) != 2 {
 			return "", fmt.Errorf("неверный формат правила d")
 		}
@@ -44,7 +35,6 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 			return "", fmt.Errorf("интервал должен быть от 1 до 400 дней")
 		}
 
-		// Переносим дату вперёд, пока она не станет позже now.
 		for {
 			date = date.AddDate(0, 0, interval)
 			if afterNow(date, now) {
@@ -53,7 +43,6 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		}
 
 	case "y":
-		// Для ежегодной задачи уточнения не нужны.
 		if len(parts) != 1 {
 			return "", fmt.Errorf("неверный формат правила y")
 		}
@@ -69,6 +58,5 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		return "", fmt.Errorf("неподдерживаемое правило повторения: %s", parts[0])
 	}
 
-	// Возвращаем дату в формате YYYYMMDD.
-	return date.Format("20060102"), nil
+	return date.Format(DateFormat), nil
 }

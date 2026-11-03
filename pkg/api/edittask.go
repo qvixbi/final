@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -11,46 +12,47 @@ import (
 func editTaskHandler(w http.ResponseWriter, r *http.Request) {
 	var task db.Task
 
-	// Читаем JSON из запроса.
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
-		writeJSON(w, map[string]string{
+		writeJSON(w, http.StatusBadRequest, map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
-	// Проверяем идентификатор.
 	if strings.TrimSpace(task.ID) == "" {
-		writeJSON(w, map[string]string{
-			"error": "Не указан идентификатор",
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "не указан идентификатор",
 		})
 		return
 	}
 
-	// Проверяем заголовок.
 	if strings.TrimSpace(task.Title) == "" {
-		writeJSON(w, map[string]string{
-			"error": "Не указан заголовок задачи",
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "не указан заголовок задачи",
 		})
 		return
 	}
 
-	// Проверяем дату и правило повторения.
 	if err := checkDate(&task); err != nil {
-		writeJSON(w, map[string]string{
+		writeJSON(w, http.StatusBadRequest, map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
-	// Обновляем задачу в базе данных.
 	if err := db.UpdateTask(&task); err != nil {
-		writeJSON(w, map[string]string{
+		if errors.Is(err, db.ErrTaskNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
-	// Возвращаем пустой JSON при успешном обновлении.
-	writeJSON(w, struct{}{})
+	writeJSON(w, http.StatusOK, struct{}{})
 }

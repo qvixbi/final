@@ -6,27 +6,29 @@ import (
 	"go_final_project/pkg/db"
 )
 
+const tasksLimit = 50
+
 type TasksResp struct {
 	Tasks []*db.Task `json:"tasks"`
 }
 
 func tasksHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeJSON(w, map[string]string{
-			"error": "Метод не поддерживается",
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{
+			"error": "метод не поддерживается",
 		})
 		return
 	}
 
-	tasks, err := db.Tasks(50)
+	tasks, err := db.Tasks(tasksLimit)
 	if err != nil {
-		writeJSON(w, map[string]string{
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
-	writeJSON(w, TasksResp{
+	writeJSON(w, http.StatusOK, TasksResp{
 		Tasks: tasks,
 	})
 }

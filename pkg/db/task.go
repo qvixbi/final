@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	"fmt"
+	"errors"
 )
+
+var ErrTaskNotFound = errors.New("задача не найдена")
 
 type Task struct {
 	ID      string `json:"id"`
@@ -24,12 +26,7 @@ func AddTask(task *Task) (int64, error) {
 		return 0, err
 	}
 
-	id, err := result.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
-
-	return id, nil
+	return result.LastInsertId()
 }
 
 func Tasks(limit int) ([]*Task, error) {
@@ -51,14 +48,13 @@ func Tasks(limit int) ([]*Task, error) {
 	for rows.Next() {
 		var task Task
 
-		err := rows.Scan(
+		if err := rows.Scan(
 			&task.ID,
 			&task.Date,
 			&task.Title,
 			&task.Comment,
 			&task.Repeat,
-		)
-		if err != nil {
+		); err != nil {
 			return nil, err
 		}
 
@@ -90,8 +86,8 @@ func GetTask(id string) (*Task, error) {
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("Задача не найдена")
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrTaskNotFound
 		}
 		return nil, err
 	}
@@ -124,17 +120,17 @@ func UpdateTask(task *Task) error {
 	}
 
 	if count == 0 {
-		return fmt.Errorf("Задача не найдена")
+		return ErrTaskNotFound
 	}
 
 	return nil
 }
 
-// DeleteTask удаляет задачу по её идентификатору.
 func DeleteTask(id string) error {
-	query := `DELETE FROM scheduler WHERE id = ?`
-
-	result, err := db.Exec(query, id)
+	result, err := db.Exec(
+		`DELETE FROM scheduler WHERE id = ?`,
+		id,
+	)
 	if err != nil {
 		return err
 	}
@@ -145,17 +141,18 @@ func DeleteTask(id string) error {
 	}
 
 	if count == 0 {
-		return fmt.Errorf("Задача не найдена")
+		return ErrTaskNotFound
 	}
 
 	return nil
 }
 
-// UpdateDate изменяет дату выполнения задачи.
 func UpdateDate(next string, id string) error {
-	query := `UPDATE scheduler SET date = ? WHERE id = ?`
-
-	result, err := db.Exec(query, next, id)
+	result, err := db.Exec(
+		`UPDATE scheduler SET date = ? WHERE id = ?`,
+		next,
+		id,
+	)
 	if err != nil {
 		return err
 	}
@@ -166,7 +163,7 @@ func UpdateDate(next string, id string) error {
 	}
 
 	if count == 0 {
-		return fmt.Errorf("Задача не найдена")
+		return ErrTaskNotFound
 	}
 
 	return nil

@@ -1,31 +1,36 @@
 package api
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 
 	"go_final_project/pkg/db"
 )
 
 func getTaskHandler(w http.ResponseWriter, r *http.Request) {
-	// Получаем идентификатор из URL.
 	id := r.URL.Query().Get("id")
-
-	if id == "" {
-		writeJSON(w, map[string]string{
-			"error": "Не указан идентификатор",
+	if strings.TrimSpace(id) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "не указан идентификатор",
 		})
 		return
 	}
 
-	// Получаем задачу из базы данных.
 	task, err := db.GetTask(id)
 	if err != nil {
-		writeJSON(w, map[string]string{
+		if errors.Is(err, db.ErrTaskNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
-	// Возвращаем найденную задачу.
-	writeJSON(w, task)
+	writeJSON(w, http.StatusOK, task)
 }
